@@ -1,0 +1,276 @@
+@import "tailwindcss";
+
+@theme {
+  /* ───────────────────────────────────────────────────────────────────────
+   * RWB PROJECT REVIEW SYSTEM — DESIGN TOKENS (single shared style source)
+   *
+   * SURFACES — page canvas #F7F6F3 · cards #FFFFFF · info tiles #F0EEEA
+   * TEXT     — primary #1A2332 · micro-labels #8A8F98 (11px/uppercase/.05em)
+   * ACCENT   — navy #1F3A5F ONLY (links, active nav, primary actions).
+   *            Amber is reserved for ONE meaning: warning / needs-attention.
+   * STATES   — success #4A7C59 · danger #B34A4A · warning #D99A3F
+   * BORDERS  — hairline #E4E2DE
+   * ───────────────────────────────────────────────────────────────────────
+   */
+
+  /* Text & surfaces */
+  --color-ink: #1a2332;
+  --color-ink-900: #16243a;
+  --color-ink-800: #16294a;
+  --color-ink-700: #3a4250;
+  --color-ink-600: #2c4678;
+  --color-ink-100: #dbe3f0;
+  --color-ink-50: #f0eeea;
+
+  --color-paper: #f7f6f3;
+  --color-paper-dark: #f0eeea;
+  --color-paper-darker: #e6e2dc;
+
+  /* Explicit design tokens (canonical names) */
+  --color-canvas: #f7f6f3;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f0eeea;
+  --color-muted: #636974;
+  --color-line: #e3e6ea;
+
+  /* Primary accent — navy (links, active nav, primary actions) */
+  --color-accent: #1f3a5f;
+  --color-accent-dark: #16293f;
+  --color-accent-soft: #e9edf3;
+
+  /* Brand blue — public/auth surfaces (login, registration). Reused
+   * app-wide for the government-blue identity: #0F5FA8. */
+  --color-brand: #0f5fa8;
+  --color-brand-dark: #0b4d8a;
+  --color-brand-soft: #e8f1f9;
+
+  /* Warning / needs-attention — the ONLY amber meaning */
+  --color-amber: #d99a3f;
+  --color-amber-dark: #b8761f;
+  --color-amber-light: #f6ecdc;
+
+  /* States */
+  --color-sage: #4a7c59;
+  --color-sage-dark: #3d6b49;
+  --color-sage-light: #e9f0ea;
+
+  --color-brick: #b34a4a;
+  --color-brick-dark: #91393a;
+  --color-brick-light: #f5e9e9;
+
+  /* Text */
+  --color-dark: #1f2937;
+  --color-gray: #6b7280;
+
+  /* Rwanda Water Resources Board — water & government palette (auth pages) */
+  --color-water-blue: #005baa;
+  --color-water-sky: #1e88e5;
+  --color-water-sky-light: #64b5f6;
+  --color-water-navy: #0d3b66;
+  --color-water-green: #2e7d32;
+  --color-water-aqua: #4fc3f7;
+  --color-water-mist: #f8fbfd;
+  --color-water-line: #e5eef5;
+  --color-water-ink: #1b1f23;
+  --color-water-gray: #6b7280;
+
+  /* Type */
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible keyboard focus everywhere — navy (the single primary accent). */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.6) rotate(var(--stamp-tilt, -3deg));
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.95) rotate(var(--stamp-tilt, -3deg));
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(var(--stamp-tilt, -3deg));
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes grow-bar {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes draw-donut {
+  from {
+    stroke-dashoffset: var(--donut-circ);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s ease-out both;
+}
+
+/* ── Water auth page — blobs, waves, ripples, card entrance ───────────────── */
+
+@keyframes rwb-card {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.002);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rwb-blob-a {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(42px, 30px) scale(1.08);
+  }
+}
+
+@keyframes rwb-blob-b {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-36px, -22px) scale(0.95);
+  }
+}
+
+@keyframes rwb-blob-c {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(20px, -34px) scale(1.05);
+  }
+}
+
+@keyframes rwb-wave {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes rwb-ripple {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.animate-rwb-card {
+  animation: rwb-card 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-rwb-blob-a {
+  animation: rwb-blob-a 18s ease-in-out infinite;
+}
+
+.animate-rwb-blob-b {
+  animation: rwb-blob-b 22s ease-in-out infinite;
+}
+
+.animate-rwb-blob-c {
+  animation: rwb-blob-c 26s ease-in-out infinite;
+}
+
+.animate-rwb-wave {
+  animation: rwb-wave 30s linear infinite;
+}
+
+.animate-rwb-ripple {
+  animation: rwb-ripple 9s ease-out infinite;
+}
+
+/* Blue focus ring for the auth inputs (overrides the navy default). */
+.rwb-focus-blue:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@keyframes water-flow {
+  0% { transform: translateX(0) translateY(0); }
+  50% { transform: translateX(-20px) translateY(5px); }
+  100% { transform: translateX(0) translateY(0); }
+}
+
+.animate-water-flow {
+  animation: water-flow 12s ease-in-out infinite;
+}
+
+@keyframes water-shimmer {
+  0%, 100% { opacity: 0.03; }
+  50% { opacity: 0.07; }
+}
+
+.animate-water-shimmer {
+  animation: water-shimmer 8s ease-in-out infinite;
+}
+
+@keyframes blob-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(18px, -12px) scale(1.04); }
+  50% { transform: translate(-8px, 16px) scale(0.96); }
+  75% { transform: translate(12px, 8px) scale(1.02); }
+}
+
+.animate-blob-drift {
+  animation: blob-drift 22s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

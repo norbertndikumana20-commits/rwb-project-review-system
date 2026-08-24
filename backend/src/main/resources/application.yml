@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: rwb-review
+  datasource:
+    url: jdbc:postgresql://localhost:5432/RWB-Project
+    username: postgres
+    password: P@ssw0rd2025
+  servlet:
+    multipart:
+      # SRS: ZIP submissions up to 2 GB.
+      max-file-size: 2048MB
+      max-request-size: 2048MB
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  # SMTP transport for verification emails. Leave MAIL_HOST unset (or
+  # app.mail.enabled=false) to stay in dev mode, where the verification token
+  # is returned by the API instead of emailed.
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
+server:
+  port: 8080
+
+app:
+  uploads:
+    # Where submission attachments are stored (relative to the working dir).
+    dir: ${UPLOADS_DIR:./uploads}
+  jwt:
+    # Development secret — replace in production (>= 32 bytes).
+    secret: "rwb-review-system-development-secret-key-0123456789abcdef-0123456789abcdef"
+    expiration-ms: 86400000
+  cors:
+    allowed-origins: "http://localhost:5173,http://127.0.0.1:5173"
+  mail:
+    # Master switch — when false the API falls back to returning the
+    # verification token in the register response (dev mode).
+    enabled: ${MAIL_ENABLED:false}
+    # Display identity used as the sender.
+    from: ${MAIL_FROM:no-reply@rwb.example}
+    display-name: ${MAIL_DISPLAY_NAME:RWB Project Review}
+    # Base URL of the frontend email-verification page; the token is appended
+    # as ?token=... to build the clickable verification link.
+    verify-url: ${MAIL_VERIFY_URL:http://localhost:5173/verify-email}

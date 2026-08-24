@@ -1,0 +1,52 @@
+# ── Dependencies ────────────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+backend/target/
+
+# ── Build output ────────────────────────────────────────────────────────
+frontend/dist/
+backend/target/
+*.class
+*.jar
+*.war
+
+# ── Environment / secrets ───────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.env
+application-local.properties
+application-local.yml
+
+# ── IDE ─────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+*.swp
+*.swo
+*~
+
+# ── OS ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+
+# ── Freebuff ────────────────────────────────────────────────────────────
+.freebuff/
+
+# ── Database ────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.h2.db
+*.mv.db
+
+# ── Uploads / files ─────────────────────────────────────────────────────
+uploads/
+files/
+backend/uploads/

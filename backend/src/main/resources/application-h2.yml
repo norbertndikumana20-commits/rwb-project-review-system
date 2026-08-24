@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    # File-based H2 so the database survives connection recycling and backend
+    # restarts (an in-memory DB is dropped when its last connection closes,
+    # which made every query fail with "Table ... not found" mid-run).
+    url: jdbc:h2:file:./data/rwb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: validate
