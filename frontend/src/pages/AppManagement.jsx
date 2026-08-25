@@ -28,6 +28,7 @@ import { api } from '../lib/api'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import AppShell from '../components/AppShell'
 import { Alert, Button, Card, Field, inputClass, labelCls } from '../components/ui'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { PageHeader } from '../components/dashboard'
 import { StaggerContainer, StaggerItem } from '../components/AnimatedPage'
 
@@ -566,63 +567,45 @@ function UsersTab() {
 
       {modal && <UserEditModal user={modal.mode === 'edit' ? modal.user : null} onClose={() => setModal(null)} onSaved={() => { setModal(null); load() }} />}
 
-      {/* Confirmation dialog for destructive actions */}
-      {confirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setConfirmModal(null)}>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start gap-4">
-              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
-                confirmModal.action === 'delete' || confirmModal.action === 'reject' ? 'bg-brick-light/40 text-brick' :
-                confirmModal.action === 'disable' ? 'bg-amber-light/50 text-amber-dark' :
-                'bg-sage-light/60 text-sage-dark'
-              }`}>
-                {confirmModal.action === 'delete' ? <Trash2 className="h-6 w-6" /> :
-                 confirmModal.action === 'disable' ? <Ban className="h-6 w-6" /> :
-                 <CheckCircle2 className="h-6 w-6" />}
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-ink">
-                  {confirmModal.action === 'delete' ? 'Delete User' :
-                   confirmModal.action === 'disable' ? 'Disable User' :
-                   confirmModal.action === 'reject' ? 'Reject Registration' : 'Enable User'}
-                </h3>
-                <p className="mt-1 text-sm text-muted">
-                  {confirmModal.action === 'delete' ? (
-                    <>Are you sure you want to permanently delete <strong>{confirmModal.user.fullName}</strong>? This action cannot be undone and all their data will be lost.</>
-                  ) : confirmModal.action === 'disable' ? (
-                    <>Are you sure you want to disable <strong>{confirmModal.user.fullName}</strong>? They will no longer be able to sign in.</>
-                  ) : confirmModal.action === 'reject' ? (
-                    <>Are you sure you want to reject the registration of <strong>{confirmModal.user.fullName}</strong> ({confirmModal.user.email})? They will need to register again.</>
-                  ) : (
-                    <>Are you sure you want to enable <strong>{confirmModal.user.fullName}</strong>? They will regain access to the system.</>
-                  )}
-                </p>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setConfirmModal(null)}>Cancel</Button>
-              <Button
-                variant={confirmModal.action === 'delete' || confirmModal.action === 'reject' ? 'danger' : confirmModal.action === 'disable' ? 'primary' : 'success'}
-                onClick={executeConfirmed}
-              >
-                {confirmModal.action === 'delete' ? 'Yes, Delete User' :
-                 confirmModal.action === 'disable' ? 'Yes, Disable' :
-                 confirmModal.action === 'reject' ? 'Yes, Reject' : 'Yes, Enable'}
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      {/* Confirmation dialog for destructive actions (NFR-4.3) */}
+      <ConfirmDialog
+        open={!!confirmModal}
+        onClose={() => setConfirmModal(null)}
+        onConfirm={executeConfirmed}
+        title={
+          confirmModal?.action === 'delete' ? 'Permanently delete this user?' :
+          confirmModal?.action === 'disable' ? 'Disable this account?' :
+          confirmModal?.action === 'reject' ? 'Reject this registration?' :
+          'Enable this account?'
+        }
+        message={
+          confirmModal?.action === 'delete'
+            ? `${confirmModal?.user.fullName} will be permanently removed. All their projects, reviews, and data will be lost. This action cannot be undone.`
+            : confirmModal?.action === 'disable'
+            ? `${confirmModal?.user.fullName} will lose access immediately. They will not be able to sign in. This can be reversed later.`
+            : confirmModal?.action === 'reject'
+            ? `${confirmModal?.user.fullName} (${confirmModal?.user.email}) will be rejected. They will need to register again to access the system.`
+            : `${confirmModal?.user.fullName} will regain full access to the system. They can sign in immediately after.`
+        }
+        confirmLabel={
+          confirmModal?.action === 'delete' ? 'Yes, Delete User' :
+          confirmModal?.action === 'disable' ? 'Yes, Disable' :
+          confirmModal?.action === 'reject' ? 'Yes, Reject' : 'Yes, Enable'
+        }
+        variant={
+          confirmModal?.action === 'delete' || confirmModal?.action === 'reject' ? 'danger' :
+          confirmModal?.action === 'disable' ? 'warning' : 'info'
+        }
+      />
     </div>
   )
 }
 
 /* ── Branding Tab ──────────────────────────────────────────────────── */
+const MAX_SLIDES = 10
+const MAX_FILE_SIZE_MB = 5
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+
 function BrandingTab() {
   const [images, setImages] = useState({ LANDING: [], AUTH: [] })
   const [loading, setLoading] = useState(true)
@@ -634,6 +617,8 @@ function BrandingTab() {
   const [uploading, setUploading] = useState(false)
   const [captions, setCaptions] = useState({})
   const [busy, setBusy] = useState({})
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [originalCaptions, setOriginalCaptions] = useState({})
 
   const KINDS = [
     { value: 'LANDING', label: 'Landing Slideshow', hint: 'Full-bleed hero slides on the public landing page.' },
@@ -669,11 +654,44 @@ function BrandingTab() {
 
   useEffect(() => { refresh() }, [refresh])
 
+  // Track original captions for dirty detection
+  useEffect(() => {
+    if (Object.keys(originalCaptions).length === 0 && images.LANDING.length + images.AUTH.length > 0) {
+      const orig = {}
+      for (const list of [images.LANDING, images.AUTH]) {
+        for (const img of list) orig[img.id] = img.caption || ''
+      }
+      setOriginalCaptions(orig)
+    }
+  }, [images, originalCaptions])
+
+  function isCaptionDirty(id) {
+    return (captions[id] ?? '') !== (originalCaptions[id] ?? '')
+  }
+
+  function validateFile(file) {
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setError(`Invalid file type. Allowed: JPEG, PNG, WebP, GIF.`)
+      return false
+    }
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      setError(`File too large (${fmtBytes(file.size)}). Maximum is ${MAX_FILE_SIZE_MB} MB.`)
+      return false
+    }
+    return true
+  }
+
   async function handleUpload(e) {
     e.preventDefault()
     if (!uploadFile) { setError('Choose an image file to upload.'); return }
+    if (!validateFile(uploadFile)) return
     setUploading(true); setError(''); setNotice('')
     try {
+      const kindList = images[uploadKind] || []
+      if (uploadKind === 'LANDING' && kindList.length >= MAX_SLIDES) {
+        setError(`Maximum ${MAX_SLIDES} slides allowed for Landing Slideshow.`)
+        setUploading(false); return
+      }
       const body = new FormData()
       body.append('file', uploadFile)
       body.append('kind', uploadKind)
@@ -689,7 +707,13 @@ function BrandingTab() {
 
   async function patch(id, payload) {
     setBusy((b) => ({ ...b, [id]: true }))
-    try { await api(`/admin/branding/${id}`, { method: 'PATCH', body: payload }); await refresh(); return true }
+    try {
+      await api(`/admin/branding/${id}`, { method: 'PATCH', body: payload })
+      if ('caption' in payload) {
+        setOriginalCaptions((prev) => ({ ...prev, [id]: payload.caption || '' }))
+      }
+      await refresh(); return true
+    }
     catch (err) { setError(err.message || 'Update failed.'); return false }
     finally { setBusy((b) => ({ ...b, [id]: false })) }
   }
@@ -710,17 +734,22 @@ function BrandingTab() {
   }
 
   async function remove(id) {
-    if (!window.confirm('Delete this image?')) return
+    setDeleteTarget(id)
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    const id = deleteTarget
     setBusy((x) => ({ ...x, [id]: true }))
     try {
       await api(`/admin/branding/${id}`, { method: 'DELETE' })
       setNotice('Image deleted.'); window.setTimeout(() => setNotice(''), 4000)
       await refresh()
     } catch (err) { setError(err.message || 'Delete failed.') }
-    finally { setBusy((x) => ({ ...x, [id]: false })) }
+    finally { setBusy((x) => ({ ...x, [id]: false })); setDeleteTarget(null) }
   }
 
-  function renderRow(img, index, list) {
+  function renderRow(img, index, list, kind) {
     const isFirst = index === 0; const isLast = index === list.length - 1
     return (
       <motion.li
@@ -741,9 +770,9 @@ function BrandingTab() {
           </div>
           <div className="flex items-center gap-2">
             <input className={`${inputClass} py-2`} placeholder="Caption…" value={captions[img.id] ?? ''} onChange={(e) => setCaptions((c) => ({ ...c, [img.id]: e.target.value }))} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); patch(img.id, { caption: (captions[img.id] || '').trim() }) } }} />
-            <Button variant="secondary" className="px-2.5 py-2 text-xs" onClick={() => patch(img.id, { caption: (captions[img.id] || '').trim() })} disabled={busy[img.id]}>Save</Button>
+            <Button variant="secondary" className="px-2.5 py-2 text-xs" onClick={() => patch(img.id, { caption: (captions[img.id] || '').trim() })} disabled={busy[img.id] || !isCaptionDirty(img.id)}>{isCaptionDirty(img.id) ? 'Save' : 'Saved'}</Button>
           </div>
-          <p className="text-[11px] text-muted">Slide {index + 1} of {list.length}</p>
+          <p className="text-[11px] text-muted">Slide {index + 1} of {list.length}{kind?.value === 'LANDING' ? ` (max ${MAX_SLIDES})` : ''}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1">
           <Button variant="secondary" className="px-2" onClick={() => move(img.id, -1)} disabled={busy[img.id] || isFirst} aria-label="Move up"><ArrowUp className="h-4 w-4" /></Button>
@@ -753,15 +782,24 @@ function BrandingTab() {
         </div>
       </motion.li>
     )
-  }
+  }    return (
+      <div className="space-y-6">
+        {error && <Alert kind="error">{error}</Alert>}
+        {notice && <Alert kind="success">{notice}</Alert>}
 
-  return (
-    <div className="space-y-6">
-      {error && <Alert kind="error">{error}</Alert>}
-      {notice && <Alert kind="success">{notice}</Alert>}
+        {/* Delete confirmation dialog */}
+        <ConfirmDialog
+          open={!!deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={confirmDelete}
+          title="Delete this image?"
+          message="This image will be permanently removed from the slideshow. This action cannot be undone."
+          confirmLabel="Yes, Delete Image"
+          variant="danger"
+          loading={busy[deleteTarget]}
+        />
 
-      <Card className="p-6">
-        <SectionHeader icon={ImagePlus} title="Upload Image" description="JPEG, PNG, WebP or GIF. Landing slides show full-bleed; auth backgrounds render dimmed behind the login cards." color="#7B2CBF" />
+      <Card className="p-6">            <SectionHeader icon={ImagePlus} title="Upload Image" description={`JPEG, PNG, WebP or GIF. Max ${MAX_FILE_SIZE_MB} MB per file. ${uploadKind === 'LANDING' ? `Landing slideshow supports up to ${MAX_SLIDES} slides.` : 'Auth backgrounds render dimmed behind login cards.'}`} color="#7B2CBF" />
         <form onSubmit={handleUpload} className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Field label="Surface" id="bk-kind">
             <select id="bk-kind" className={inputClass} value={uploadKind} onChange={(e) => setUploadKind(e.target.value)}>
@@ -774,6 +812,9 @@ function BrandingTab() {
           <Field label="Image file" id="bk-file">
             <input id="bk-file" type="file" required accept="image/jpeg,image/png,image/webp,image/gif" className={`${inputClass} file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white file:transition-colors file:hover:bg-accent-dark`} onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
           </Field>
+          {uploadKind === 'AUTH' && (
+            <p className="md:col-span-3 -mt-2 text-[11px] text-muted">Recommended dimensions: 1920×1080 (16:9) or wider. These images appear dimmed behind the login/register cards.</p>
+          )}
           <div className="md:col-span-3"><Button type="submit" disabled={uploading || !uploadFile}>{uploading ? 'Uploading…' : 'Upload image'}</Button></div>
         </form>
       </Card>
@@ -796,9 +837,12 @@ function BrandingTab() {
                     <ImagePlus className="mx-auto h-8 w-8 text-muted" aria-hidden="true" />
                     <p className="mt-2 text-sm font-medium text-ink-700">No images yet</p>
                     <p className="mt-1 text-[13px] text-muted">Upload one above.</p>
+                    {kind.value === 'AUTH' && (
+                      <p className="mt-3 text-[11px] text-muted/70">Recommended: 1920×1080 or wider (16:9). Images are dimmed and cropped behind the login cards.</p>
+                    )}
                   </div>
                 ) : (
-                  <ul className="mt-4 space-y-3">{list.map((img, i) => renderRow(img, i, list))}</ul>
+                  <ul className="mt-4 space-y-3">{list.map((img, i) => renderRow(img, i, list, kind))}</ul>
                 )}
               </Card>
             )
