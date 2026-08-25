@@ -1,20 +1,75 @@
+# ============================================
+# RWB Project Review System — Docker Compose
+# ============================================
+# Quick start:  docker compose up -d
+# First time:    docker compose up -d --build
+# Stop:          docker compose down
+# Reset DB:      docker compose down -v && docker compose up -d --build
+
 services:
+  # ---- PostgreSQL ----
   db:
     image: postgres:16-alpine
-    container_name: rwb-postgres
+    container_name: rwb-db
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: rwb
-      POSTGRES_USER: rwb
-      POSTGRES_PASSWORD: rwb
+      POSTGRES_DB: ${POSTGRES_DB:-RWB-Project}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeMe2025}
     ports:
       - "5432:5432"
     volumes:
-      - rwb-pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rwb -d rwb"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 3s
       retries: 10
 
+  # ---- Spring Boot backend ----
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rwb-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-RWB-Project}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-changeMe2025}
+      SERVER_PORT: "8080"
+      JWT_SECRET: ${JWT_SECRET:-rwb-production-secret-change-me-in-production-please}
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@rwb.example}
+      MAIL_DISPLAY_NAME: ${MAIL_DISPLAY_NAME:-RWB Project Review}
+      MAIL_VERIFY_URL: ${MAIL_VERIFY_URL:-http://localhost/verify-email}
+      APP_CORS_ALLOWED_ORIGINS: "http://localhost,http://localhost:80,http://localhost:5173"
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads:/app/uploads
+
+  # ---- React frontend ----
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost}
+    container_name: rwb-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
 volumes:
-  rwb-pgdata:
+  pgdata:
+  uploads:
