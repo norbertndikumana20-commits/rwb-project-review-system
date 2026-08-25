@@ -355,7 +355,13 @@ function UsersTab() {
 
   useEffect(() => { load() }, [load])
 
+  const [confirmModal, setConfirmModal] = useState(null)
+
   async function act(u, action) {
+    if (action === 'disable' || action === 'enable') {
+      setConfirmModal({ user: u, action })
+      return
+    }
     try {
       await api(`/admin/users/${u.id}/${action}`, { method: 'POST' })
       toast.success(`${u.fullName} ${action}d.`)
@@ -363,18 +369,34 @@ function UsersTab() {
     } catch (err) { setError(err.message) }
   }
 
-  async function remove(u) {
-    if (!window.confirm(`Delete ${u.fullName}? This cannot be undone.`)) return
+  async function executeConfirmed() {
+    if (!confirmModal) return
+    const { user: u, action } = confirmModal
     try {
-      await api(`/admin/users/${u.id}`, { method: 'DELETE' })
-      toast.success('User deleted.')
+      if (action === 'delete') {
+        await api(`/admin/users/${u.id}`, { method: 'DELETE' })
+        toast.success(`${u.fullName} has been permanently deleted.`)
+      } else {
+        await api(`/admin/users/${u.id}/${action}`, { method: 'POST' })
+        const labels = { enable: 'enabled', disable: 'disabled', reject: 'rejected' }
+        toast.success(`${u.fullName} ${labels[action] || action}.`)
+      }
+      setConfirmModal(null)
       load()
     } catch (err) { setError(err.message) }
+  }
+
+  async function remove(u) {
+    setConfirmModal({ user: u, action: 'delete' })
   }
 
   const filtered = (users || [])
     .filter((u) => roleFilter === 'ALL' || u.role === roleFilter)
     .filter((u) => !search || u.fullName.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      const order = { PENDING_ADMIN_REVIEW: 0, PENDING_EMAIL_VERIFICATION: 1, ACTIVE_FIRST_PROJECT_REQUIRED: 2, ACTIVE: 3, DISABLED: 4 }
+      return (order[a.accountStatus] ?? 5) - (order[b.accountStatus] ?? 5)
+    })
 
   return (
     <div className="space-y-6">
@@ -405,9 +427,11 @@ function UsersTab() {
                   </div>
                   <div className="flex gap-2">
                     <Button variant="success" className="px-3 py-1.5 text-xs" onClick={() => act(u, 'approve')}>
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Approve
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Activate Account
                     </Button>
-                    <Button variant="danger" className="px-3 py-1.5 text-xs" onClick={() => act(u, 'reject')}>
+                    <Button variant="danger" className="px-3 py-1.5 text-xs" onClick={() => {
+                      setConfirmModal({ user: u, action: 'reject' })
+                    }}>
                       <Ban className="h-3.5 w-3.5" /> Reject
                     </Button>
                   </div>
@@ -491,18 +515,32 @@ function UsersTab() {
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                       u.accountStatus === 'ACTIVE' ? 'bg-sage-light/60 text-sage-dark' :
+                      u.accountStatus === 'ACTIVE_FIRST_PROJECT_REQUIRED' ? 'bg-blue-100 text-blue-700' :
                       u.accountStatus === 'DISABLED' ? 'bg-brick-light/40 text-brick' :
+                      u.accountStatus === 'PENDING_ADMIN_REVIEW' ? 'bg-amber-light/60 text-amber-dark ring-1 ring-amber/30' :
+                      u.accountStatus === 'PENDING_EMAIL_VERIFICATION' ? 'bg-gray-100 text-gray-600' :
                       'bg-amber-light/50 text-amber-dark'
                     }`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${
                         u.accountStatus === 'ACTIVE' ? 'bg-sage' :
-                        u.accountStatus === 'DISABLED' ? 'bg-brick' : 'bg-amber'
+                        u.accountStatus === 'ACTIVE_FIRST_PROJECT_REQUIRED' ? 'bg-blue-500' :
+                        u.accountStatus === 'DISABLED' ? 'bg-brick' :
+                        u.accountStatus === 'PENDING_ADMIN_REVIEW' ? 'bg-amber animate-pulse' :
+                        u.accountStatus === 'PENDING_EMAIL_VERIFICATION' ? 'bg-gray-400' : 'bg-amber'
                       }`} />
-                      {u.accountStatus}
+                      {u.accountStatus === 'PENDING_ADMIN_REVIEW' ? '⏳ Pending Review' :
+                       u.accountStatus === 'PENDING_EMAIL_VERIFICATION' ? '✉️ Email Pending' :
+                       u.accountStatus === 'ACTIVE_FIRST_PROJECT_REQUIRED' ? '🆕 First Project' :
+                       u.accountStatus}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {u.accountStatus === 'PENDING_ADMIN_REVIEW' && (
+                        <Button variant="success" className="h-8 px-2.5 text-xs" onClick={() => act(u, 'approve')}>
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Activate
+                        </Button>
+                      )}
                       <Button variant="secondary" className="h-8 px-2.5 text-xs" onClick={() => setModal({ mode: 'edit', user: u })} aria-label={`Edit ${u.fullName}`}>
                         <Pencil className="h-3.5 w-3.5" /> Edit
                       </Button>
@@ -527,6 +565,59 @@ function UsersTab() {
       </Card>
 
       {modal && <UserEditModal user={modal.mode === 'edit' ? modal.user : null} onClose={() => setModal(null)} onSaved={() => { setModal(null); load() }} />}
+
+      {/* Confirmation dialog for destructive actions */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setConfirmModal(null)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-4">
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+                confirmModal.action === 'delete' || confirmModal.action === 'reject' ? 'bg-brick-light/40 text-brick' :
+                confirmModal.action === 'disable' ? 'bg-amber-light/50 text-amber-dark' :
+                'bg-sage-light/60 text-sage-dark'
+              }`}>
+                {confirmModal.action === 'delete' ? <Trash2 className="h-6 w-6" /> :
+                 confirmModal.action === 'disable' ? <Ban className="h-6 w-6" /> :
+                 <CheckCircle2 className="h-6 w-6" />}
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-ink">
+                  {confirmModal.action === 'delete' ? 'Delete User' :
+                   confirmModal.action === 'disable' ? 'Disable User' :
+                   confirmModal.action === 'reject' ? 'Reject Registration' : 'Enable User'}
+                </h3>
+                <p className="mt-1 text-sm text-muted">
+                  {confirmModal.action === 'delete' ? (
+                    <>Are you sure you want to permanently delete <strong>{confirmModal.user.fullName}</strong>? This action cannot be undone and all their data will be lost.</>
+                  ) : confirmModal.action === 'disable' ? (
+                    <>Are you sure you want to disable <strong>{confirmModal.user.fullName}</strong>? They will no longer be able to sign in.</>
+                  ) : confirmModal.action === 'reject' ? (
+                    <>Are you sure you want to reject the registration of <strong>{confirmModal.user.fullName}</strong> ({confirmModal.user.email})? They will need to register again.</>
+                  ) : (
+                    <>Are you sure you want to enable <strong>{confirmModal.user.fullName}</strong>? They will regain access to the system.</>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setConfirmModal(null)}>Cancel</Button>
+              <Button
+                variant={confirmModal.action === 'delete' || confirmModal.action === 'reject' ? 'danger' : confirmModal.action === 'disable' ? 'primary' : 'success'}
+                onClick={executeConfirmed}
+              >
+                {confirmModal.action === 'delete' ? 'Yes, Delete User' :
+                 confirmModal.action === 'disable' ? 'Yes, Disable' :
+                 confirmModal.action === 'reject' ? 'Yes, Reject' : 'Yes, Enable'}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }
